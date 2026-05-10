@@ -121,6 +121,18 @@ const TOOLS: Tool[] = [
   },
 
   {
+    name: "pine_read_range",
+    description: "Read a contiguous range of bytes from emulated memory and return them as an array of integers. Implemented client-side as a pipelined sequence of PINE read64/32/16/8 calls (PINE has no native bulk-read), choosing the largest aligned load at each step. Maximum 4096 bytes per call. Slower than mGBA's native readRange but fast enough for cheat-table refresh and small struct dumps over loopback.",
+    inputSchema: {
+      type: "object",
+      required: ["address", "length"],
+      properties: {
+        address: { type: "integer", description: "Start address" },
+        length:  { type: "integer", minimum: 1, maximum: 4096, description: "Number of bytes to read" },
+      },
+    },
+  },
+  {
     name: "pine_save_state",
     description: "Trigger the emulator to save its current state to a numbered slot.",
     inputSchema: {
@@ -212,6 +224,14 @@ export function registerTools(server: Server, pine: PineClient): void {
         const v = BigInt(p.value as string);
         await pine.write64(addr(), v);
         return ok(`Wrote ${fmtHex(v)} → ${addrHex(addr())}`);
+      }
+
+      case "pine_read_range": {
+        const bytes = await pine.readRange(p.address as number, p.length as number);
+        const hex = Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
+          .join(" ");
+        return ok(`${addrHex(p.address as number)} [${bytes.length} bytes]:\n${hex}`);
       }
 
       case "pine_save_state": {

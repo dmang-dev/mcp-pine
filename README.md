@@ -153,9 +153,12 @@ Restart Claude Desktop after editing.
 | `pine_get_info` | Title, serial (e.g. `SLUS-21274`), disc CRC, game version, status |
 | `pine_get_status` | Just the running/paused/shutdown state |
 | `pine_read8` / `pine_read16` / `pine_read32` / `pine_read64` | Read memory |
+| `pine_read_range` | Bulk read up to 4096 bytes (client-side pipelined PINE calls) |
 | `pine_write8` / `pine_write16` / `pine_write32` / `pine_write64` | Write memory (RAM only — ROM writes are silently dropped) |
 | `pine_save_state` | Trigger save state to a numbered slot (0-255) |
 | `pine_load_state` | Trigger load state from a numbered slot (0-255) |
+
+See [`docs/RECIPES.md`](docs/RECIPES.md) for end-to-end examples (RAM hunting, struct decoding, snapshot-experiment-restore).
 
 ### PlayStation 2 address space (cheat sheet)
 
@@ -177,6 +180,8 @@ Restart Claude Desktop after editing.
 | `PINE FAIL response` (0xFF) | The emulator rejected the request — most often because no game is loaded, or the address is unmapped. |
 | Reads return zeros | Address is in an unallocated region. Try `0x00100000` first (almost always inside loaded EE RAM). |
 | Tool calls work but values look corrupted | Check endianness expectations — PINE returns little-endian; if you're interpreting strings, use `read_range`-style byte reads. |
+| `PINE call timed out (10s)` from `pine_ping` after some heavy use | **PCSX2's PINE server can wedge.** Its request queue is fragile — if a third-party tool pipelines too aggressively (more than ~6 in-flight requests) it silently drops requests, and from then on every reply is mis-aligned with the wrong waiting client. Symptom: even a fresh `pine_ping` times out. **Fix: fully restart PCSX2.** Reconnecting alone won't help — the corruption is on the emulator side. |
+| `pine_read_range` slower than mGBA's `read_range` | Expected. PINE has no native bulk read, so we issue calls **serially** (pipelining can wedge PCSX2 — see above). Loopback TCP is fast enough that this isn't usually a problem: measured ~52 ms for a full 4096-byte read on PCSX2 v2.6.3. For workloads that need lower latency and can tolerate occasional emulator restarts, set `PINE_PIPELINE_BATCH=2`. |
 
 ## Development
 

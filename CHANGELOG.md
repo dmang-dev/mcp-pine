@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-10
+
+Bulk read + robustness pass.
+
+### Added
+
+- **`pine_read_range`** — bulk read up to 4096 bytes in one tool call.
+  Implemented client-side as a serial sequence of PINE
+  `read64`/`32`/`16`/`8` calls, choosing the largest aligned width at
+  each step. Measured ~52 ms for a full 4096-byte read on PCSX2 v2.6.3
+  over loopback.
+- **10-second timeout on every PINE call** — if the emulator drops a
+  reply (more on this in the discovered issue below), the call rejects
+  cleanly instead of hanging the bridge forever.
+- **`docs/RECIPES.md`** — cookbook of common workflows (RAM hunting,
+  struct decoding, snapshot-experiment-restore) with copy-paste
+  tool-call sequences.
+
+### Discovered (worth knowing)
+
+PCSX2's PINE server has a **fragile request queue**: dropping any
+single request silently desyncs the reply pipeline, and from then on
+every reply is mis-aligned with the wrong waiting client. Once
+desynced, even a fresh `pine_ping` will time out — only an emulator
+restart recovers.
+
+We hit this empirically by pipelining ~7 mixed in-flight requests.
+After investigation, `pine_read_range` issues calls **fully serially
+by default** (`PINE_PIPELINE_BATCH=1`). Loopback TCP is fast enough
+that this isn't a practical problem (52 ms for 4 KB). Power users can
+set `PINE_PIPELINE_BATCH=2` or higher to trade safety for latency.
+
+### Changed
+
+- README troubleshooting section expanded with the wedged-PCSX2-PINE
+  diagnostic and the new bulk-read latency profile.
+
 ## [0.1.0] - 2026-05-08
 
 Initial public release.
@@ -37,5 +74,6 @@ Initial public release.
   stepping. For an emulator MCP server with those capabilities, see
   [mcp-mgba](https://github.com/dmang-dev/mcp-mgba).
 
-[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.1.0

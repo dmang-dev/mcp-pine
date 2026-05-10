@@ -1,6 +1,6 @@
 {
   "name": "mcp-pine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for emulators that speak PINE (PCSX2, and other PINE-compatible emulators) — exposes memory read/write and savestate control",
   "license": "MIT",
   "type": "module",
