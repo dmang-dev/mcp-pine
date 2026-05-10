@@ -1,0 +1,201 @@
+# mcp-pine
+
+[![npm version](https://img.shields.io/npm/v/mcp-pine.svg)](https://www.npmjs.com/package/mcp-pine)
+[![npm downloads](https://img.shields.io/npm/dm/mcp-pine.svg)](https://www.npmjs.com/package/mcp-pine)
+[![CI](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml/badge.svg)](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/npm/l/mcp-pine.svg)](LICENSE)
+
+An [MCP](https://modelcontextprotocol.io) server for emulators that speak [PINE](https://github.com/GovanifY/pine) (Protocol for Instrumentation of Network Emulators) — exposes **memory read/write** and **savestate control** to MCP-compatible clients (Claude Desktop, Claude Code, etc.).
+
+## What you can do with it
+
+- **Read & write emulated memory** — 8/16/32/64-bit, anywhere in the EE address space
+- **Trigger save / load state** to numbered slots
+- **Query game metadata** — title, serial, disc CRC, version
+- **Inspect emulator state** — running / paused / shutdown
+
+What you **can't** do (because PINE itself doesn't expose these):
+- Send controller input
+- Take screenshots
+- Step / pause / reset the emulator
+
+This makes mcp-pine well-suited for **memory inspection, cheat / RAM hunting, savestate automation, and reverse engineering**, but not for "play games via Claude." For input + screenshot capability on Game Boy Advance, see the sister project [mcp-mgba](https://github.com/dmang-dev/mcp-mgba).
+
+## How it works
+
+```
++----------------+    stdio     +----------------+   PINE socket    +-----------------+
+|   MCP client   |   JSON-RPC   |    mcp-pine    |  (TCP or Unix)   |    Emulator     |
+|  (Claude etc.) | -----------> |   (Node.js)    | ---------------> |  (PINE server)  |
++----------------+              +----------------+                  +-----------------+
+```
+
+`mcp-pine` opens a loopback connection to the emulator's PINE server (TCP on Windows, Unix domain socket on Linux/macOS) and translates each MCP tool call into a binary PINE message.
+
+## Compatible emulators
+
+| Emulator         | Platform      | PINE built in?                            | Default slot |
+|------------------|---------------|-------------------------------------------|--------------|
+| **PCSX2 ≥ 1.7** ([setup](#pcsx2)) | PlayStation 2 | ✅ Yes (toggle in settings)              | 28011 |
+| **RPCS3** ([setup](#rpcs3))       | PlayStation 3 | ⚠️ Has IPC with PINE-compatible opcodes — verify before relying on it | varies |
+| **Duckstation**  | PlayStation 1 | ⚠️ PINE has been discussed in upstream issues; check current build    | varies |
+
+Other emulators implementing the PINE spec should work out of the box once you point `mcp-pine` at the right slot — open an issue if you've tested one and it works.
+
+## Requirements
+
+- An emulator with PINE enabled (see setup below)
+- **Node.js 18+**
+
+## Install
+
+### Option A — install from npm (recommended)
+
+```bash
+npm install -g mcp-pine
+```
+
+Verify with `mcp-pine` (it prints a startup line and waits for stdio — `Ctrl+C` to exit).
+
+### Option B — `npx` (no install)
+
+```bash
+npx -y mcp-pine
+```
+
+### Option C — clone and develop
+
+```bash
+git clone https://github.com/dmang-dev/mcp-pine
+cd mcp-pine
+npm install        # also runs the build via the `prepare` hook
+```
+
+## Emulator setup
+
+### PCSX2
+
+1. Launch PCSX2 (1.7.x Qt or newer).
+2. **Settings → Advanced → Enable PINE Server** (the option may live under a different submenu in some builds — search the settings for "PINE").
+3. Default slot is **28011**. If you change it, set `PINE_SLOT` for `mcp-pine`.
+4. Load any game.
+
+That's it — no scripts, no console commands. PINE is always-on once the toggle is set.
+
+### RPCS3
+
+RPCS3 has its own IPC implementation that mirrors PINE's opcode set, but the wire-level compatibility hasn't been thoroughly tested with this client. To try it:
+
+1. **Configuration → Advanced → Enable IPC server** (or similar — check current RPCS3 docs).
+2. Note the configured port.
+3. Run with `PINE_TARGET=rpcs3 PINE_SLOT=<port> mcp-pine`.
+
+If something doesn't work, please file an issue with details.
+
+### Duckstation
+
+Check whether your build of Duckstation includes a PINE server (this varies by version). If yes, set `PINE_TARGET=duckstation PINE_SLOT=<port>`.
+
+## Register with your MCP client
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add pine --scope user mcp-pine
+```
+
+Verify:
+```bash
+claude mcp list
+# pine: mcp-pine - ✓ Connected
+```
+
+### Claude Desktop
+
+Edit `claude_desktop_config.json`:
+
+| Platform | Path |
+|---|---|
+| macOS    | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows  | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux    | `~/.config/Claude/claude_desktop_config.json` |
+
+```json
+{
+  "mcpServers": {
+    "pine": {
+      "command": "mcp-pine"
+    }
+  }
+}
+```
+
+Restart Claude Desktop after editing.
+
+### Other MCP clients
+
+`mcp-pine` speaks standard MCP over stdio. Run it and connect any compatible client.
+
+## Configuration
+
+| Env var             | Default       | Purpose |
+|---------------------|---------------|---------|
+| `PINE_TARGET`       | `pcsx2`       | Emulator name — used as the prefix in the Unix socket file path on Linux/macOS (`<target>.sock.<slot>`). Ignored on Windows (TCP only). |
+| `PINE_SLOT`         | `28011`       | PINE slot — also the TCP port on Windows |
+| `PINE_HOST`         | `127.0.0.1`   | Override the host (TCP only) |
+| `PINE_SOCKET_PATH`  | (auto)        | Override the full Unix socket path on Linux/macOS, bypassing automatic resolution |
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `pine_ping` | Verify the connection by querying the emulator version |
+| `pine_get_info` | Title, serial (e.g. `SLUS-21274`), disc CRC, game version, status |
+| `pine_get_status` | Just the running/paused/shutdown state |
+| `pine_read8` / `pine_read16` / `pine_read32` / `pine_read64` | Read memory |
+| `pine_write8` / `pine_write16` / `pine_write32` / `pine_write64` | Write memory (RAM only — ROM writes are silently dropped) |
+| `pine_save_state` | Trigger save state to a numbered slot (0-255) |
+| `pine_load_state` | Trigger load state from a numbered slot (0-255) |
+
+### PlayStation 2 address space (cheat sheet)
+
+| Range | Region |
+|-------|--------|
+| `0x00000000` | EE main RAM (32 MiB) — **start here for game data** |
+| `0x10000000` | Hardware registers (DMA, GIF, VIF) |
+| `0x11000000` | VU0 / VU1 memory |
+| `0x12000000` | GS privileged registers |
+| `0x1C000000` | IOP RAM (2 MiB) |
+| `0x1F800000` | IOP scratchpad |
+| `0x70000000` | EE scratchpad (16 KiB) |
+
+## Troubleshooting
+
+| Symptom | Cause / Fix |
+|---|---|
+| `Cannot reach PINE server` | Emulator isn't running, PINE isn't enabled in its settings, or the slot/port doesn't match. Check `PINE_SLOT`. |
+| `PINE FAIL response` (0xFF) | The emulator rejected the request — most often because no game is loaded, or the address is unmapped. |
+| Reads return zeros | Address is in an unallocated region. Try `0x00100000` first (almost always inside loaded EE RAM). |
+| Tool calls work but values look corrupted | Check endianness expectations — PINE returns little-endian; if you're interpreting strings, use `read_range`-style byte reads. |
+
+## Development
+
+```bash
+npm install
+npm run dev      # tsc --watch
+```
+
+Quick smoke test against a running PCSX2:
+
+```bash
+node .scratch/smoke.cjs
+```
+
+## License
+
+[MIT](LICENSE)
+
+## Related
+
+- [mcp-mgba](https://github.com/dmang-dev/mcp-mgba) — sister MCP server for the mGBA Game Boy Advance emulator (also includes button input + screenshot, which PINE doesn't expose)
+- [PINE protocol spec](https://github.com/GovanifY/pine) — the underlying IPC standard

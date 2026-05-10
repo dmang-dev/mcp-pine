@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.js.map
+.rstk/
+.scratch/
+*.png
+homebrew_games/
+"PlayStation 2 BIOS"/
