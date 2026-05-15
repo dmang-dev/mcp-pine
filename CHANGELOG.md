@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-15
+
+Tool description quality pass — written to Glama's Tool Definition Quality
+Score (TDQS) rubric so every tool maximizes Purpose Clarity, Usage
+Guidelines, Behavioral Transparency, Parameter Semantics, Conciseness,
+and Contextual Completeness.
+
+### Changed
+
+- **Every tool description rewritten to the PURPOSE / USAGE / BEHAVIOR /
+  RETURNS template** — explicit error conditions, explicit
+  when-to-use-this-vs-sibling guidance (e.g. read16 vs read32 vs
+  read64; pine_read_range's pipeline-vs-serial trade-off), explicit
+  destructive-behavior notes for state-mutating tools (`pine_write*`,
+  `pine_save_state` slot overwrite), explicit return-value shape, and
+  explicit alignment caveats (PCSX2 silently corrupts unaligned
+  multi-byte access).
+- **Every parameter now has a description** that adds context beyond
+  the JSON Schema. PS2 memory landmarks (EE main RAM 0x00100000 -
+  0x01FFFFFF, IOP RAM 0x1C000000+, scratchpad) inlined into address
+  parameter docs.
+- **64-bit value encoding** clarified — `pine_write64` / `pine_read64`
+  use string-encoded decimal because JS can't represent the full u64
+  range natively past 2^53.
+- **Connection-failure modes** documented — Unix socket path
+  (`$XDG_RUNTIME_DIR/<target>.sock.<slot>` with `$TMPDIR`/`/tmp`
+  fallbacks) on Linux/macOS, TCP `127.0.0.1:<slot>` on Windows, and
+  the 10-second per-call timeout.
+- **PCSX2 pipeline drop bug** documented in `pine_read_range` — the
+  bridge defaults to fully-serial requests; setting
+  `PINE_PIPELINE_BATCH` opts in at risk of desyncing PCSX2.
+
 ## [0.2.0] - 2026-05-10
 
 Bulk read + robustness pass.
@@ -74,6 +106,7 @@ Initial public release.
   stepping. For an emulator MCP server with those capabilities, see
   [mcp-mgba](https://github.com/dmang-dev/mcp-mgba).
 
-[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.2.1
 [0.2.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.1.0
