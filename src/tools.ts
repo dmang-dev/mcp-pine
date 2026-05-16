@@ -63,10 +63,10 @@ const TOOLS: Tool[] = [
   {
     name: "pine_ping",
     description:
-      "PURPOSE: Verify that the PINE server (PCSX2 or another PINE-compatible emulator) is reachable and responding to RPC over its socket. " +
-      "USAGE: Call this once at start-of-session before issuing other tool calls; if it succeeds, every other tool will work for the live emulator instance. Internally issues the PINE Version opcode (0x08) — a cheap round-trip that doubles as a liveness probe and an emulator-version sniff. " +
-      "BEHAVIOR: No side effects — pure liveness probe. The bridge connects on demand: on Linux/macOS it opens a Unix domain socket at $XDG_RUNTIME_DIR/<target>.sock.<slot> (or $TMPDIR / /tmp fallback), on Windows it opens TCP to 127.0.0.1:<slot> (default port 28011 for PCSX2). Times out after ~10 seconds with a clear error if the emulator isn't running, PINE isn't enabled (PCSX2: Settings > Advanced > Enable PINE Server), or the slot/port doesn't match. " +
-      "RETURNS: Single line 'OK — emulator: VERSION_STRING' (e.g. 'OK — emulator: PCSX2 2.6.3').",
+      "PURPOSE: Verify the PINE server (PCSX2 etc.) is reachable and responding. " +
+      "USAGE: Call once at session start before other tool calls. Issues PINE Version opcode (0x08) — doubles as liveness probe and emulator-version sniff. " +
+      "BEHAVIOR: No side effects. Bridge connects on demand — Unix socket at $XDG_RUNTIME_DIR/<target>.sock.<slot> (Linux/macOS, with $TMPDIR/$/tmp fallback) or TCP to 127.0.0.1:<slot> (Windows, default port 28011). 10-second timeout if the emulator isn't running, PINE isn't enabled (PCSX2: Settings > Advanced), or slot/port mismatches. " +
+      "RETURNS: 'OK — emulator: VERSION_STRING', e.g. 'OK — emulator: PCSX2 2.6.3'.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -81,10 +81,10 @@ const TOOLS: Tool[] = [
   {
     name: "pine_get_status",
     description:
-      "PURPOSE: Get just the emulator run state — 'running', 'paused', 'shutdown', or 'unknown'. " +
-      "USAGE: Use as a cheap (single PINE round-trip) check before timing-sensitive sequences — e.g. before a sequence of memory writes you may want to confirm the emulator isn't paused (writes still work but won't take visible effect until unpaused). For game metadata (title, serial, CRC) use pine_get_info instead — that batches Status with Title/ID/UUID/GameVersion. PINE itself has no pause/resume opcode, so this tool only reports state; pause from the emulator UI or via a separate hotkey. " +
-      "BEHAVIOR: No side effects — pure read. Issues PINE Status opcode (0x0F) and decodes the 32-bit response (0=running, 1=paused, 2=shutdown, anything else='unknown'). Returns an error if the connection fails or PINE returns FAIL. " +
-      "RETURNS: Single line 'Status: STATE' where STATE is one of 'running', 'paused', 'shutdown', 'unknown'.",
+      "PURPOSE: Get the emulator run state — 'running', 'paused', 'shutdown', or 'unknown'. " +
+      "USAGE: Cheap (1 PINE round-trip) check before timing-sensitive sequences — writes work while paused but only take visible effect after unpause. For game metadata (title, serial, CRC) use pine_get_info (batches Status with Title/ID/UUID/GameVersion). PINE has no pause/resume opcode; this tool only reports state. " +
+      "BEHAVIOR: No side effects. Issues PINE Status opcode (0x0F), decodes the 32-bit response (0=running, 1=paused, 2=shutdown). Errors on connection failure or PINE FAIL. " +
+      "RETURNS: 'Status: STATE' where STATE ∈ {running, paused, shutdown, unknown}.",
     inputSchema: { type: "object", properties: {} },
   },
 
@@ -161,11 +161,11 @@ const TOOLS: Tool[] = [
   {
     name: "pine_read_range",
     description:
-      "PURPOSE: Read a contiguous range of bytes from the emulator's EE address space and return them as a hex-formatted dump. " +
-      "USAGE: Use whenever you need more than ~4 bytes — far cheaper than looping pine_read8 since this tool batches the work into the largest aligned loads available (read64 on 8-byte boundaries, falling back to 32/16/8 at the unaligned edges). Hard cap of 4096 bytes per call; for larger reads, batch in 4 KiB chunks yourself. Classic uses: snapshot-diff RAM hunts (snapshot before a known game change, snapshot after, diff for matching deltas), inspecting unknown structs, capturing a region for later restore via cheats. " +
-      "BEHAVIOR: No side effects — pure read. PINE has NO native bulk-read opcode; this tool synthesizes the range by issuing a sequence of read64/32/16/8 calls and assembling the bytes client-side. By default it issues these calls FULLY SERIALLY (one in flight at a time) because PCSX2's PINE server has a fragile request queue — at as few as ~7 mixed in-flight requests it silently drops replies, which leaves the bridge's reply pipeline desynced and times out ALL subsequent calls until the emulator is restarted. Loopback is fast enough that serial is OK (~52 ms for 4096 bytes against PCSX2 v2.6.3). The PINE_PIPELINE_BATCH env var can raise the in-flight count if you trust your specific emulator's PINE implementation. Returns an error if length < 1 or > 4096, if any underlying read FAILs, or if a reply times out.\n\n" +
+      "PURPOSE: Read a contiguous range of bytes from EE memory as a hex dump. " +
+      "USAGE: For >4 bytes — far cheaper than looping pine_read8. Max 4096 bytes/call; chunk larger reads in 4 KiB. Powers snapshot-diff RAM hunts (snapshot before/after a known change, diff for matching deltas), unknown-struct inspection, and region capture/restore. " +
+      "BEHAVIOR: No side effects. PINE has no native bulk-read opcode; the tool synthesizes the range from read64/32/16/8 calls (largest aligned load at each step) and assembles client-side. Issued FULLY SERIALLY by default because PCSX2's PINE queue silently drops replies past ~7 in-flight requests, desyncing the bridge until emulator restart. Loopback serial is fast enough (~52 ms for 4096 bytes on PCSX2 v2.6.3). Override via PINE_PIPELINE_BATCH env var at your own risk. Errors on length out of 1-4096, any underlying FAIL, or reply timeout.\n\n" +
       PS2_REGIONS + "\n\n" +
-      "RETURNS: Header line 'ADDR_HEX [N bytes]:' followed by space-separated 2-digit uppercase hex bytes.",
+      "RETURNS: 'ADDR_HEX [N bytes]:' header + space-separated 2-digit uppercase hex bytes.",
     inputSchema: {
       type: "object",
       required: ["address", "length"],
@@ -219,11 +219,11 @@ const TOOLS: Tool[] = [
   {
     name: "pine_write16",
     description:
-      "PURPOSE: Write an unsigned 16-bit little-endian value to the emulator's EE address space at the given absolute address. " +
-      "USAGE: Use for 16-bit cheats and pokes (HP, score, coordinates). For single bytes use pine_write8; for 32/64-bit use pine_write32/write64; for big-endian fields, byteswap into a value with the bytes reversed yourself before calling — this tool always writes little-endian. To roll back, snapshot first via pine_save_state. " +
-      "BEHAVIOR: DESTRUCTIVE: overwrites two bytes (low byte at `address`, high byte at `address+1`) with no undo. Direct memory write — bypasses TLB protection; writes to read-only regions are silently dropped. Address MUST be 2-byte aligned — PINE on PCSX2 does NOT enforce this; an unaligned address writes the bytes at the aligned address below, silently corrupting unrelated state. Returns an error if the connection drops or PINE returns FAIL on a wholly invalid address.\n\n" +
+      "PURPOSE: Write an unsigned 16-bit little-endian value to EE memory. " +
+      "USAGE: For 16-bit cheats/pokes (HP, score, coordinates). For single bytes use pine_write8; for 32/64-bit use pine_write32/write64; for big-endian fields byteswap first (this tool always writes little-endian). Snapshot via pine_save_state for rollback. " +
+      "BEHAVIOR: DESTRUCTIVE: overwrites two bytes (low at `address`, high at `address+1`) with no undo. Direct write — bypasses TLB; writes to read-only regions (BIOS, IOP ROM) are silently dropped. Address MUST be 2-byte aligned — PINE on PCSX2 does NOT enforce this and silently corrupts the aligned-below bytes on misalignment. Errors on connection drop or PINE FAIL.\n\n" +
       PS2_REGIONS + "\n\n" +
-      "RETURNS: Single line 'Wrote VAL_DEC (0xVAL_HEX) → ADDR_HEX'.",
+      "RETURNS: 'Wrote VAL_DEC (0xVAL_HEX) → ADDR_HEX'.",
     inputSchema: {
       type: "object",
       required: ["address", "value"],
@@ -270,11 +270,11 @@ const TOOLS: Tool[] = [
   {
     name: "pine_write64",
     description:
-      "PURPOSE: Write an unsigned 64-bit little-endian value to the emulator's EE address space at the given absolute address. " +
-      "USAGE: Use for true 64-bit writes — full PS2 EE pointers, large IDs, packed doubleword state. Single atomic write from the emulator's perspective; preferred over chaining two pine_write32 calls when atomicity matters (a running game can observe the in-between state with the chained approach). For 8/16/32-bit values use the corresponding sibling. " +
-      "BEHAVIOR: DESTRUCTIVE: overwrites eight bytes starting at `address` with no undo. Direct memory write — bypasses TLB protection; writes to read-only regions are silently dropped. Address MUST be 8-byte aligned — PINE on PCSX2 does NOT enforce this; an unaligned address silently corrupts unrelated bytes. The `value` is passed as a DECIMAL STRING (not a JSON number) to preserve precision past 2^53 (JavaScript number limit) — pass '0' through '18446744073709551615' as a string, e.g. \"4294967296\". Strings that don't match ^[0-9]+$ are rejected by the schema. Returns an error if the connection drops or PINE returns FAIL on a wholly invalid address.\n\n" +
+      "PURPOSE: Write an unsigned 64-bit little-endian value to EE memory. " +
+      "USAGE: For true 64-bit writes — full EE pointers, large IDs, packed doubleword state. Atomic from the emulator's perspective; preferred over chaining two pine_write32 calls (a running game can observe the in-between state). For 8/16/32-bit values use the corresponding sibling. " +
+      "BEHAVIOR: DESTRUCTIVE: overwrites eight bytes from `address` with no undo. Direct write — bypasses TLB; writes to read-only regions silently dropped. Address MUST be 8-byte aligned — PINE on PCSX2 does NOT enforce this and silently corrupts on misalignment. `value` is a DECIMAL STRING (0 through 18446744073709551615) to preserve precision past JS's 2^53 number limit. Errors on connection drop or PINE FAIL.\n\n" +
       PS2_REGIONS + "\n\n" +
-      "RETURNS: Single line 'Wrote VAL_DEC (0xVAL_HEX) → ADDR_HEX' — VAL_DEC may exceed 2^53.",
+      "RETURNS: 'Wrote VAL_DEC (0xVAL_HEX) → ADDR_HEX' — VAL_DEC may exceed 2^53.",
     inputSchema: {
       type: "object",
       required: ["address", "value"],
@@ -299,10 +299,10 @@ const TOOLS: Tool[] = [
   {
     name: "pine_save_state",
     description:
-      "PURPOSE: Trigger the emulator to save its complete state (RAM, EE/IOP/VU registers, GS state, sound, timing) to the given numbered savestate slot. " +
-      "USAGE: Use as a rollback point before risky writes, to bookmark an interesting game state, or to share a repro state with a teammate. The companion pine_load_state restores from the same slot. PINE savestates are SLOT-BASED (0-255 integer), unlike file-path-based emulator APIs (e.g. BizHawk's) — the emulator decides where on disk to put the file. PCSX2's GUI uses slots 0-9 as F1-F10; programmatic use can extend up to 255 if you don't mind being outside the GUI's range. " +
-      "BEHAVIOR: DESTRUCTIVE TO TARGET SLOT: silently overwrites whatever was previously saved in that slot — no prompt, no backup, no way to recover the old state. The save is bound to the EXACT game disc and PCSX2 version that produced it; loading a slot saved against a different game or major PCSX2 version usually crashes the core. The PINE call returns immediately after PCSX2 schedules the save, NOT after the file is fully on disk — for very large states there can be a brief window where the file is half-written. Returns an error if PCSX2 has no game loaded, the savestate folder isn't writable, or PINE returns FAIL.\n\n" +
-      "RETURNS: Single line 'Save state triggered for slot N'.",
+      "PURPOSE: Trigger the emulator to save complete state (RAM, EE/IOP/VU registers, GS, sound, timing) to a numbered slot. " +
+      "USAGE: Rollback point before risky writes, bookmarks, repro sharing. Companion pine_load_state restores from the same slot. PINE savestates are SLOT-BASED (0-255), not file-path-based — the emulator picks the disk location. PCSX2's GUI maps slots 0-9 to F1-F10; 10-255 are programmatic-only. " +
+      "BEHAVIOR: DESTRUCTIVE TO TARGET SLOT: silently overwrites prior contents — no prompt, no backup, no recovery. Bound to the exact game disc and PCSX2 version; loading mismatched usually crashes the core. The call returns when PCSX2 schedules the save, NOT when the file is on disk — brief half-written window possible. Errors on no game loaded, unwritable folder, or PINE FAIL.\n\n" +
+      "RETURNS: 'Save state triggered for slot N'.",
     inputSchema: {
       type: "object",
       required: ["slot"],
