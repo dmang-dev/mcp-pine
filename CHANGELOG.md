@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-18
+
+Target-aware tool descriptions. mcp-pine has always supported any
+PINE-speaking emulator at the protocol level, but the tool
+descriptions were hardcoded around PCSX2's EE memory map — an agent
+pointed at RPCS3 still saw PS2 addresses in its tool docs. v0.3.0
+moves all that context behind a `TargetInfo` table and renders
+descriptions per-target at startup.
+
+### Added
+
+- **`src/targets.ts`** with `TargetInfo` records for PCSX2 and RPCS3.
+  Each carries: display name, system, default PINE slot, address-space
+  label, useful-range hint, full memory map (multi-line cheat sheet
+  baked into every memory-tool description), startup help string,
+  savestate file layout, and per-emulator alignment notes.
+- **`PINE_SLOT`** now defaults to the *target's* default slot when
+  unset (28011 for pcsx2, 28012 for rpcs3), rather than always 28011.
+- **Unknown `PINE_TARGET` values** pass through with a generic memory
+  map and a startup warning, so forward-compatibility with future
+  PINE-speaking emulators doesn't require a code change.
+
+### Changed
+
+- **`tools.ts` is now a builder**: `buildTools(target)` returns a
+  target-aware `Tool[]` instead of exporting a hard-coded array. Every
+  memory tool description embeds `target.memoryMap` (was: hard-coded
+  `PS2_REGIONS`), and address parameter docs interpolate
+  `target.usefulRangeHint`, `target.addressSpaceName`, and
+  `target.alignmentNote`. Savestate slot docs interpolate
+  `target.savestateInfo`.
+- **`registerTools(server, pine, target)`** — third arg added. External
+  consumers (if any) need to pass a `TargetInfo`.
+- **Startup help** when PINE isn't reachable now shows the *target's*
+  setup steps (PCSX2 menu path for `pcsx2`, RPCS3 IPC notes for
+  `rpcs3`) instead of always PCSX2.
+- **Startup line** now logs the resolved target: `target=pcsx2 (PCSX2 — PlayStation 2)`.
+
+### Note on DuckStation
+
+Initial scoping for v0.3.0 targeted DuckStation as a third first-class
+target, since PINE was the obvious vehicle for adding PS1 support.
+Investigation surfaced that stenzek implemented PINE in DuckStation
+in May 2024 (commit 4311e087) then **dropped it in September 2024**
+(commit 19698559, "System: Drop IPC server"). Current DuckStation
+builds have no PINE server to talk to. The `targets.ts` design
+leaves an extension point for re-adding DuckStation if upstream
+ever brings PINE back.
+
+### Migration
+
+Existing PCSX2 users: no action needed. `PINE_TARGET` defaults to
+`pcsx2` and tool descriptions are unchanged in content. RPCS3 users
+were previously stuck reading PCSX2 tool docs while running RPCS3 —
+v0.3.0 fixes that.
+
+[0.3.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.3.0
+
 ## [0.2.1] - 2026-05-15
 
 Tool description quality pass — written to Glama's Tool Definition Quality
@@ -106,7 +164,7 @@ Initial public release.
   stepping. For an emulator MCP server with those capabilities, see
   [mcp-mgba](https://github.com/dmang-dev/mcp-mgba).
 
-[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/dmang-dev/mcp-pine/compare/v0.3.0...HEAD
 [0.2.1]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.2.1
 [0.2.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dmang-dev/mcp-pine/releases/tag/v0.1.0

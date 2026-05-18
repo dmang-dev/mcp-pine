@@ -5,14 +5,16 @@
 [![CI](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml/badge.svg)](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/npm/l/mcp-pine.svg)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server for emulators that speak [PINE](https://github.com/GovanifY/pine) (Protocol for Instrumentation of Network Emulators) — exposes **memory read/write** and **savestate control** to MCP-compatible clients (Claude Desktop, Claude Code, etc.).
+An [MCP](https://modelcontextprotocol.io) server for emulators that speak [PINE](https://github.com/GovanifY/pine) (Protocol for Instrumentation of Network Emulators) — first-class support for **PCSX2** (PS2) and **RPCS3** (PS3), with target-aware tool descriptions so the agent sees the right memory map for whichever emulator it's pointed at. Exposes memory read/write and savestate control. Driven from MCP-compatible clients (Claude Desktop, Claude Code, etc.).
 
 ## What you can do with it
 
-- **Read & write emulated memory** — 8/16/32/64-bit, anywhere in the EE address space
+- **Read & write emulated memory** — 8/16/32/64-bit, anywhere in the emulator's address space (PS2 EE for PCSX2, PPU main memory for RPCS3)
 - **Trigger save / load state** to numbered slots
 - **Query game metadata** — title, serial, disc CRC, version
 - **Inspect emulator state** — running / paused / shutdown
+
+Tool descriptions, memory-map context, and setup help are rendered **per-target** at startup — set `PINE_TARGET=rpcs3` and every memory-tool description shows PS3 PPU addresses instead of PS2 EE addresses.
 
 What you **can't** do (because PINE itself doesn't expose these):
 - Send controller input
@@ -34,13 +36,16 @@ This makes mcp-pine well-suited for **memory inspection, cheat / RAM hunting, sa
 
 ## Compatible emulators
 
-| Emulator         | Platform      | PINE built in?                            | Default slot |
-|------------------|---------------|-------------------------------------------|--------------|
-| **PCSX2 ≥ 1.7** ([setup](#pcsx2)) | PlayStation 2 | ✅ Yes (toggle in settings)              | 28011 |
-| **RPCS3** ([setup](#rpcs3))       | PlayStation 3 | ⚠️ Has IPC with PINE-compatible opcodes — verify before relying on it | varies |
-| **Duckstation**  | PlayStation 1 | ⚠️ PINE has been discussed in upstream issues; check current build    | varies |
+| Emulator         | Platform      | PINE built in?                            | Default slot | `PINE_TARGET` |
+|------------------|---------------|-------------------------------------------|--------------|---------------|
+| **PCSX2 ≥ 1.7** ([setup](#pcsx2)) | PlayStation 2 | ✅ Yes (toggle in settings)              | 28011 | `pcsx2` (default) |
+| **RPCS3** ([setup](#rpcs3))       | PlayStation 3 | ⚠️ Has IPC with PINE-compatible opcodes — verify before relying on it | 28012 | `rpcs3` |
 
 Other emulators implementing the PINE spec should work out of the box once you point `mcp-pine` at the right slot — open an issue if you've tested one and it works.
+
+**Note on DuckStation (PS1)**: DuckStation had PINE support from May–September 2024 but [dropped it in commit 19698559](https://github.com/stenzek/duckstation/commit/19698559). Current builds have no PINE server. If upstream brings it back, `PINE_TARGET=duckstation` is reserved.
+
+Setting `PINE_TARGET` does two things: (1) selects the right Unix socket filename on Linux/macOS, and (2) renders all tool descriptions, memory maps, and setup help for that emulator's address space. Default is `pcsx2` for back-compat.
 
 ## Requirements
 
@@ -92,9 +97,6 @@ RPCS3 has its own IPC implementation that mirrors PINE's opcode set, but the wir
 
 If something doesn't work, please file an issue with details.
 
-### Duckstation
-
-Check whether your build of Duckstation includes a PINE server (this varies by version). If yes, set `PINE_TARGET=duckstation PINE_SLOT=<port>`.
 
 ## Register with your MCP client
 
@@ -140,8 +142,8 @@ Restart Claude Desktop after editing.
 
 | Env var             | Default       | Purpose |
 |---------------------|---------------|---------|
-| `PINE_TARGET`       | `pcsx2`       | Emulator name — used as the prefix in the Unix socket file path on Linux/macOS (`<target>.sock.<slot>`). Ignored on Windows (TCP only). |
-| `PINE_SLOT`         | `28011`       | PINE slot — also the TCP port on Windows |
+| `PINE_TARGET`       | `pcsx2`       | Emulator name. Known values: `pcsx2`, `rpcs3`. Selects (1) the Unix socket file prefix on Linux/macOS (`<target>.sock.<slot>`), and (2) the memory map and setup help shown in tool descriptions. Unknown values pass through with a generic memory map. |
+| `PINE_SLOT`         | target default | PINE slot — also the TCP port on Windows. Defaults: `pcsx2`=28011, `rpcs3`=28012. Set explicitly to override. |
 | `PINE_HOST`         | `127.0.0.1`   | Override the host (TCP only) |
 | `PINE_SOCKET_PATH`  | (auto)        | Override the full Unix socket path on Linux/macOS, bypassing automatic resolution |
 
@@ -160,17 +162,18 @@ Restart Claude Desktop after editing.
 
 See [`docs/RECIPES.md`](docs/RECIPES.md) for end-to-end examples (RAM hunting, struct decoding, snapshot-experiment-restore).
 
-### PlayStation 2 address space (cheat sheet)
+### PlayStation 2 address space (PCSX2, default target)
 
 | Range | Region |
 |-------|--------|
-| `0x00000000` | EE main RAM (32 MiB) — **start here for game data** |
+| `0x00100000-0x01FFFFFF` | EE main RAM (32 MiB) — **start here for game data** |
 | `0x10000000` | Hardware registers (DMA, GIF, VIF) |
 | `0x11000000` | VU0 / VU1 memory |
 | `0x12000000` | GS privileged registers |
-| `0x1C000000` | IOP RAM (2 MiB) |
+| `0x1C000000-0x1C1FFFFF` | IOP RAM (2 MiB) |
 | `0x1F800000` | IOP scratchpad |
 | `0x70000000` | EE scratchpad (16 KiB) |
+
 
 ## Troubleshooting
 

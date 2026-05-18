@@ -1,7 +1,7 @@
 {
   "name": "mcp-pine",
-  "version": "0.2.1",
-  "description": "MCP server for emulators that speak PINE (PCSX2, and other PINE-compatible emulators) — exposes memory read/write and savestate control",
+  "version": "0.3.0",
+  "description": "MCP server for emulators that speak PINE — first-class PCSX2 (PS2) and RPCS3 (PS3), with target-aware tool descriptions, memory r/w, and savestate control",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -46,6 +46,8 @@
     "rpcs3",
     "emulator",
     "playstation",
+    "ps2",
+    "ps3",
     "claude"
   ]
 }
