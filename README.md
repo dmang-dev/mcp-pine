@@ -4,6 +4,10 @@
 [![npm downloads](https://img.shields.io/npm/dm/mcp-pine.svg)](https://www.npmjs.com/package/mcp-pine)
 [![CI](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml/badge.svg)](https://github.com/dmang-dev/mcp-pine/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/npm/l/mcp-pine.svg)](LICENSE)
+[![Snyk](https://snyk.io/test/npm/mcp-pine/badge.svg)](https://snyk.io/test/npm/mcp-pine)
+[![Socket](https://img.shields.io/badge/Socket-security-2F7BFF?logo=socket)](https://socket.dev/npm/package/mcp-pine)
+[![Bundlephobia](https://img.shields.io/badge/bundlephobia-size-FF6B81)](https://bundlephobia.com/package/mcp-pine)
+[![npmgraph](https://img.shields.io/badge/npmgraph-dependencies-2496ED)](https://npmgraph.js.org/?q=mcp-pine)
 
 An [MCP](https://modelcontextprotocol.io) server for emulators that speak [PINE](https://github.com/GovanifY/pine) (Protocol for Instrumentation of Network Emulators) — first-class support for **PCSX2** (PS2) and **RPCS3** (PS3), with target-aware tool descriptions so the agent sees the right memory map for whichever emulator it's pointed at. Exposes memory read/write and savestate control. Driven from MCP-compatible clients (Claude Desktop, Claude Code, etc.).
 
