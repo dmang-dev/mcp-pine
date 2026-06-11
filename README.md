@@ -54,7 +54,7 @@ Setting `PINE_TARGET` does two things: (1) selects the right Unix socket filenam
 ## Requirements
 
 - An emulator with PINE enabled (see setup below)
-- **Node.js 18+**
+- **Node.js 22+**
 
 ## Install
 
