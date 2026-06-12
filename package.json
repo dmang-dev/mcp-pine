@@ -1,6 +1,6 @@
 {
   "name": "mcp-pine",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "MCP server for emulators that speak PINE — first-class PCSX2 (PS2) and RPCS3 (PS3), with target-aware tool descriptions, memory r/w, and savestate control",
   "license": "MIT",
   "type": "module",
