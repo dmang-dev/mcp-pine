@@ -8,7 +8,7 @@
 # For actual use you don't need Docker — `npm install -g mcp-pine` and point
 # it at a running PCSX2 (or other PINE emulator). See README.md.
 
-FROM node:22-trixie-slim
+FROM node:26-trixie-slim
 WORKDIR /app
 
 # Install dependencies. --ignore-scripts skips the `prepare` hook; we run the
