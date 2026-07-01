@@ -203,6 +203,16 @@ Quick smoke test against a running PCSX2:
 node .scratch/smoke.cjs
 ```
 
+## Debugging with the MCP Inspector
+
+Browse and call this server's tools interactively with the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+PINE_TARGET=pcsx2 npm run inspector
+```
+
+Build first if you've edited `src/` since your last `npm install` (`npm run build`, or keep `npm run dev` running). Set `PINE_TARGET` (`pcsx2` default, or `rpcs3`) and `PINE_SLOT` to match your emulator — e.g. `PINE_TARGET=rpcs3 PINE_SLOT=28012 npm run inspector`. `tools/list` works even without an emulator connected; *calling* a tool needs PCSX2 (or RPCS3) running with PINE/IPC enabled.
+
 ## License
 
 [MIT](LICENSE)
