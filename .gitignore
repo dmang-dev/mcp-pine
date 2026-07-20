@@ -7,3 +7,6 @@ dist/
 *.png
 homebrew_games/
 "PlayStation 2 BIOS"/
+
+# Local agent context - not part of the repo or the published package.
+CLAUDE.md
